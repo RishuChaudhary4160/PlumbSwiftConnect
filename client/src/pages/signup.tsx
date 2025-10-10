@@ -20,7 +20,7 @@ const signupSchema = z.object({
   confirmPassword: z.string(),
   role: z.enum(["user", "plumber", "admin"]),
   address: z.string().optional(),
-  agreeTerms: z.boolean().refine(val => val === true, "You must agree to the terms and conditions"),
+  // agreeTerms: z.boolean().refine(val => val === true, "You must agree to the terms and conditions"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -44,7 +44,7 @@ export default function Signup() {
       confirmPassword: "",
       role: "user",
       address: "",
-      agreeTerms: false,
+      // agreeTerms: false,
     },
   });
 
@@ -229,7 +229,7 @@ export default function Signup() {
                 )}
               </div>
             </div>
-
+{/* 
             <div className="flex items-center space-x-2">
               <Checkbox id="agreeTerms" {...form.register("agreeTerms")} />
               <Label htmlFor="agreeTerms" className="text-sm">
@@ -245,7 +245,7 @@ export default function Signup() {
             </div>
             {form.formState.errors.agreeTerms && (
               <p className="text-sm text-destructive">{form.formState.errors.agreeTerms.message}</p>
-            )}
+            )} */}
 
             <Button
               type="submit"
