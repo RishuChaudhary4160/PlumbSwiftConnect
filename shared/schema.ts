@@ -61,9 +61,13 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  role: z.enum(["user", "plumber", "admin"]),
 });
 
-export const insertPlumberSchema = createInsertSchema(plumbers).omit({
+export const insertPlumberSchema = createInsertSchema(plumbers, {
+  specializations: z.array(z.string()),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -74,6 +78,8 @@ export const insertBookingSchema = createInsertSchema(bookings).omit({
   createdAt: true,
   updatedAt: true,
   assignmentHistory: true,
+}).extend({
+  status: z.enum(['pending', 'assigned', 'accepted', 'rejected', 'in-progress', 'completed', 'cancelled']).default('pending'),
 });
 
 export const insertCategorySchema = createInsertSchema(categories).omit({

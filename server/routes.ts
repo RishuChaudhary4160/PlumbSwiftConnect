@@ -29,7 +29,7 @@ function authenticateToken(req: any, res: any, next: any) {
 async function assignPlumberToBooking(bookingId: string, category: string) {
   try {
     const availablePlumbers = await storage.getAvailablePlumbers(category);
-    
+
     if (availablePlumbers.length === 0) {
       console.log(`No available plumbers for category: ${category}`);
       return null;
@@ -37,7 +37,7 @@ async function assignPlumberToBooking(bookingId: string, category: string) {
 
     // Simple assignment: pick the plumber with the highest rating
     const assignedPlumber = availablePlumbers.sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
-    
+
     // Update booking with assigned plumber
     const booking = await storage.updateBooking(bookingId, {
       assignedPlumber: assignedPlumber.id,
@@ -51,7 +51,7 @@ async function assignPlumberToBooking(bookingId: string, category: string) {
 
     // In a real app, this would send SMS/email notification
     console.log(`Plumber ${assignedPlumber.id} assigned to booking ${bookingId}`);
-    
+
     return assignedPlumber;
   } catch (error) {
     console.error('Error assigning plumber:', error);
@@ -80,7 +80,7 @@ async function reassignPlumber(bookingId: string, rejectedPlumberId: string) {
 
     // Assign to next best plumber
     const nextPlumber = filteredPlumbers.sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
-    
+
     // Update assignment history
     const updatedHistory = [...(booking.assignmentHistory || []), {
       plumberId: nextPlumber.id,
@@ -103,12 +103,12 @@ async function reassignPlumber(bookingId: string, rejectedPlumberId: string) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
@@ -117,7 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
+
       // Create user
       const user = await storage.createUser({
         ...userData,
@@ -156,18 +156,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, password } = req.body;
-      
+      const { email: rawEmail, password } = req.body;
+      const email = rawEmail?.toLowerCase().trim();
+
       if (!email || !password) {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
+      console.log(`Login attempt for: ${email}`);
       const user = await storage.getUserByEmail(email);
       if (!user) {
+        console.log(`User not found: ${email}`);
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
+      console.log(`Password valid: ${isPasswordValid}`);
       if (!isPasswordValid) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -207,15 +211,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const booking = await storage.createBooking(bookingData);
-      
+
       // Automatically assign a plumber
       const assignedPlumber = await assignPlumberToBooking(booking.id, booking.category);
-      
+
       res.json({
         booking,
         assignedPlumber,
-        message: assignedPlumber 
-          ? "Booking created and plumber assigned successfully" 
+        message: assignedPlumber
+          ? "Booking created and plumber assigned successfully"
           : "Booking created, but no plumbers available at the moment"
       });
     } catch (error) {
@@ -227,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/bookings", authenticateToken, async (req: any, res) => {
     try {
       let bookings: any[] = [];
-      
+
       if (req.user.role === 'admin') {
         bookings = await storage.getAllBookings();
       } else if (req.user.role === 'plumber') {
@@ -268,9 +272,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (status === 'rejected') {
           // Reassign to another plumber
           const newPlumber = await reassignPlumber(id, plumber.id);
-          
+
           return res.json({
-            message: newPlumber 
+            message: newPlumber
               ? "Job rejected and reassigned to another plumber"
               : "Job rejected, no other plumbers available",
             reassigned: !!newPlumber
@@ -294,7 +298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const plumbers = await storage.getAllPlumbers();
-      
+
       // Enrich with user data
       const enrichedPlumbers = await Promise.all(
         plumbers.map(async (plumber) => {
@@ -319,7 +323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const { isVerified } = req.body;
 
-      const updatedPlumber = await storage.updatePlumber(id, { 
+      const updatedPlumber = await storage.updatePlumber(id, {
         isVerified,
         isAvailable: isVerified // Make available when verified
       });

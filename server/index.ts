@@ -77,5 +77,6 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    console.log("Server instance started, data loaded from file.");
   });
 })();

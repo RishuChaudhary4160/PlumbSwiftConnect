@@ -1,0 +1,60 @@
+{
+    "users": [
+        {
+            "id": "admin-1",
+            "name": "Admin User",
+            "email": "admin@plumbpro.com",
+            "password": "$2b$10$3EI0hvnItxGlIm81nZ0Kh.SljcQaiSp6vn3it.nhB7tjwNceHLd9W",
+            "phone": "+1 (555) 000-0000",
+            "role": "admin",
+            "address": "PlumbPro HQ",
+            "createdAt": "2023-01-01T00:00:00.000Z",
+            "updatedAt": "2023-01-01T00:00:00.000Z"
+        },
+        {
+            "id": "mike-1",
+            "name": "Mike Johnson",
+            "email": "mike@plumbpro.com",
+            "password": "$2b$10$3EI0hvnItxGlIm81nZ0Kh.SljcQaiSp6vn3it.nhB7tjwNceHLd9W",
+            "phone": "+1 (555) 123-4567",
+            "role": "plumber",
+            "address": "123 Service St",
+            "createdAt": "2023-01-01T00:00:00.000Z",
+            "updatedAt": "2023-01-01T00:00:00.000Z"
+        },
+        {
+            "id": "user-1",
+            "name": "Regular User",
+            "email": "user@plumbpro.com",
+            "password": "$2b$10$3EI0hvnItxGlIm81nZ0Kh.SljcQaiSp6vn3it.nhB7tjwNceHLd9W",
+            "phone": "+1 (555) 555-5555",
+            "role": "user",
+            "address": "456 User Lane",
+            "createdAt": "2023-01-01T00:00:00.000Z",
+            "updatedAt": "2023-01-01T00:00:00.000Z"
+        }
+    ],
+    "plumbers": [
+        {
+            "id": "mike-plumber-1",
+            "userId": "mike-1",
+            "email": "mike@plumbpro.com",
+            "password": "$2b$10$3EI0hvnItxGlIm81nZ0Kh.SljcQaiSp6vn3it.nhB7tjwNceHLd9W",
+            "specializations": [
+                "Leak Repair",
+                "Installation",
+                "Emergency"
+            ],
+            "isAvailable": true,
+            "isVerified": true,
+            "experienceYears": 8,
+            "rating": 49,
+            "totalJobs": 127,
+            "licenseNumber": "PL-12345",
+            "createdAt": "2023-01-01T00:00:00.000Z",
+            "updatedAt": "2023-01-01T00:00:00.000Z"
+        }
+    ],
+    "bookings": [],
+    "categories": []
+}

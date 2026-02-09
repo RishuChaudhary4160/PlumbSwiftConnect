@@ -1,4 +1,6 @@
-import { type User, type InsertUser, type Plumber, type InsertPlumber, type Booking, type InsertBooking, type Category, type InsertCategory } from "@shared/schema";
+import { type User, type InsertUser, type Plumber, type InsertPlumber, type Booking, type InsertBooking, type Category, type InsertCategory, users, plumbers, bookings, categories } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -42,7 +44,7 @@ export class MemStorage implements IStorage {
     this.plumbers = new Map();
     this.bookings = new Map();
     this.categories = new Map();
-    
+
     this.initializeCategories();
     this.initializeSampleData();
   }
@@ -129,7 +131,7 @@ export class MemStorage implements IStorage {
       email: insertUser.email,
       password: insertUser.password,
       phone: insertUser.phone,
-      role: insertUser.role,
+      role: "user",
       address: insertUser.address || null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -265,4 +267,241 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+import fs from 'fs';
+import path from 'path';
+
+export class JsonStorage implements IStorage {
+  private users: Map<string, User>;
+  private plumbers: Map<string, Plumber>;
+  private bookings: Map<string, Booking>;
+  private categories: Map<string, Category>;
+  private filePath: string;
+
+  constructor() {
+    this.users = new Map();
+    this.plumbers = new Map();
+    this.bookings = new Map();
+    this.categories = new Map();
+    this.filePath = path.join(process.cwd(), 'server', 'data.json');
+    this.load();
+  }
+
+  private load() {
+    try {
+      const data = fs.readFileSync(this.filePath, 'utf-8');
+      const json = JSON.parse(data, (key, value) => {
+        if ((key === 'createdAt' || key === 'updatedAt' || key === 'assignedAt' || key === 'respondedAt' || key === 'preferredDate') && typeof value === 'string') {
+          return new Date(value);
+        }
+        return value;
+      });
+      this.users = new Map(json.users.map((u: User) => [u.id, u]));
+      this.plumbers = new Map(json.plumbers.map((p: Plumber) => [p.id, p]));
+      this.bookings = new Map(json.bookings.map((b: Booking) => [b.id, b]));
+      this.categories = new Map(json.categories.map((c: Category) => [c.id, c]));
+
+      if (this.categories.size === 0) {
+        this.initializeCategories();
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      this.initializeCategories();
+      this.persistSync();
+    }
+  }
+
+  private async persist() {
+    const data = {
+      users: Array.from(this.users.values()),
+      plumbers: Array.from(this.plumbers.values()),
+      bookings: Array.from(this.bookings.values()),
+      categories: Array.from(this.categories.values()),
+    };
+    await fs.promises.writeFile(this.filePath, JSON.stringify(data, null, 2));
+  }
+
+  private persistSync() {
+    const data = {
+      users: Array.from(this.users.values()),
+      plumbers: Array.from(this.plumbers.values()),
+      bookings: Array.from(this.bookings.values()),
+      categories: Array.from(this.categories.values()),
+    };
+    fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2));
+  }
+
+  private initializeCategories() {
+    const defaultCategories = [
+      { id: randomUUID(), name: "Leak Repair", description: "Fix dripping faucets, pipe leaks, and water damage", icon: "tint", isActive: true },
+      { id: randomUUID(), name: "Installation", description: "Expert installation of fixtures, pipes, and water systems", icon: "tools", isActive: true },
+      { id: randomUUID(), name: "Maintenance", description: "Regular maintenance to prevent costly future repairs", icon: "clipboard-check", isActive: true },
+      { id: randomUUID(), name: "Emergency", description: "24/7 emergency response for urgent plumbing issues", icon: "exclamation-triangle", isActive: true },
+    ];
+
+    // Initialize default categories map
+    defaultCategories.forEach(category => {
+      this.categories.set(category.id, category);
+    });
+  }
+
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => user.email === email);
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = randomUUID();
+    const user: User = {
+      id,
+      name: insertUser.name,
+      email: insertUser.email,
+      password: insertUser.password,
+      phone: insertUser.phone,
+      role: insertUser.role,
+      address: insertUser.address || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(id, user);
+    await this.persist();
+    return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<User>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+
+    const updatedUser = { ...user, ...updateData, updatedAt: new Date() };
+    this.users.set(id, updatedUser);
+    await this.persist();
+    return updatedUser;
+  }
+
+  async getPlumber(id: string): Promise<Plumber | undefined> {
+    return this.plumbers.get(id);
+  }
+
+  async getPlumberByUserId(userId: string): Promise<Plumber | undefined> {
+    return Array.from(this.plumbers.values()).find(plumber => plumber.userId === userId);
+  }
+
+  async createPlumber(insertPlumber: InsertPlumber): Promise<Plumber> {
+    const id = randomUUID();
+    const plumber: Plumber = {
+      id,
+      userId: insertPlumber.userId,
+      specializations: Array.isArray(insertPlumber.specializations) ? insertPlumber.specializations : [],
+      isAvailable: insertPlumber.isAvailable ?? true,
+      isVerified: insertPlumber.isVerified ?? false,
+      experienceYears: insertPlumber.experienceYears ?? null,
+      rating: insertPlumber.rating ?? null,
+      totalJobs: insertPlumber.totalJobs ?? null,
+      licenseNumber: insertPlumber.licenseNumber ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.plumbers.set(id, plumber);
+    await this.persist();
+    return plumber;
+  }
+
+  async updatePlumber(id: string, updateData: Partial<Plumber>): Promise<Plumber | undefined> {
+    const plumber = this.plumbers.get(id);
+    if (!plumber) return undefined;
+
+    const updatedPlumber = { ...plumber, ...updateData, updatedAt: new Date() };
+    this.plumbers.set(id, updatedPlumber);
+    await this.persist();
+    return updatedPlumber;
+  }
+
+  async getAvailablePlumbers(specialization?: string): Promise<Plumber[]> {
+    return Array.from(this.plumbers.values()).filter(plumber => {
+      if (!plumber.isAvailable || !plumber.isVerified) return false;
+      if (specialization && !plumber.specializations.includes(specialization)) return false;
+      return true;
+    });
+  }
+
+  async getAllPlumbers(): Promise<Plumber[]> {
+    return Array.from(this.plumbers.values());
+  }
+
+  async getBooking(id: string): Promise<Booking | undefined> {
+    return this.bookings.get(id);
+  }
+
+  async createBooking(insertBooking: InsertBooking): Promise<Booking> {
+    const id = randomUUID();
+    const booking: Booking = {
+      id,
+      userId: insertBooking.userId,
+      category: insertBooking.category,
+      description: insertBooking.description,
+      address: insertBooking.address,
+      phone: insertBooking.phone,
+      preferredDate: insertBooking.preferredDate ?? null,
+      status: (insertBooking.status as any) || 'pending',
+      assignedPlumber: insertBooking.assignedPlumber ?? null,
+      assignmentHistory: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.bookings.set(id, booking);
+    await this.persist();
+    return booking;
+  }
+
+  async updateBooking(id: string, updateData: Partial<Booking>): Promise<Booking | undefined> {
+    const booking = this.bookings.get(id);
+    if (!booking) return undefined;
+
+    const updatedBooking = { ...booking, ...updateData, updatedAt: new Date() };
+    this.bookings.set(id, updatedBooking);
+    await this.persist();
+    return updatedBooking;
+  }
+
+  async getBookingsByUserId(userId: string): Promise<Booking[]> {
+    return Array.from(this.bookings.values()).filter(booking => booking.userId === userId);
+  }
+
+  async getBookingsByPlumberId(plumberId: string): Promise<Booking[]> {
+    return Array.from(this.bookings.values()).filter(booking => booking.assignedPlumber === plumberId);
+  }
+
+  async getAllBookings(): Promise<Booking[]> {
+    return Array.from(this.bookings.values()).sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+  }
+
+  async getPendingBookings(): Promise<Booking[]> {
+    return Array.from(this.bookings.values()).filter(booking => booking.status === 'pending');
+  }
+
+  async getCategories(): Promise<Category[]> {
+    return Array.from(this.categories.values()).filter(category => category.isActive);
+  }
+
+  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+    const id = randomUUID();
+    const category: Category = {
+      ...insertCategory,
+      description: insertCategory.description || null,
+      icon: insertCategory.icon || null,
+      isActive: insertCategory.isActive !== undefined ? insertCategory.isActive : true,
+      id,
+    };
+    this.categories.set(id, category);
+    await this.persist();
+    return category;
+  }
+}
+
+export const storage = new JsonStorage();
