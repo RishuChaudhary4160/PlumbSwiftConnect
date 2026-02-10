@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
-import { setupVite, serveStatic, log } from "./vite";
+import { log } from "./utils";
 import "dotenv/config";
 
 if (process.env.DATABASE_URL?.includes("52.220.170.93")) {
@@ -69,7 +69,6 @@ export async function createApp() {
     });
 
     await registerRoutes(app);
-
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
         const status = err.status || err.statusCode || 500;
