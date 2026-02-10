@@ -57,12 +57,12 @@ export const categories = pgTable("categories", {
   isActive: boolean("is_active").default(true).notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({
+export const insertUserSchema = createInsertSchema(users, {
+  role: z.enum(["user", "plumber", "admin"]),
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-}).extend({
-  role: z.enum(["user", "plumber", "admin"]),
 });
 
 export const insertPlumberSchema = createInsertSchema(plumbers, {
