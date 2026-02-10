@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { db } from "./db";
+import { sql } from "drizzle-orm";
 import { setupVite, serveStatic, log } from "./vite";
 import "dotenv/config";
 
@@ -56,7 +58,18 @@ app.use((req, res, next) => {
 
 // We wrap the route registration in a function so we can wait for it if needed
 export async function createApp() {
+    // Health check endpoint
+    app.get("/api/health-check", async (_req, res) => {
+        try {
+            const result = await db.execute(sql`SELECT 1`);
+            res.json({ status: "ok", message: "Database connected", result });
+        } catch (err) {
+            res.status(500).json({ status: "error", message: "Database connection failed", error: err instanceof Error ? err.message : String(err) });
+        }
+    });
+
     await registerRoutes(app);
+
 
     app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
         const status = err.status || err.statusCode || 500;
