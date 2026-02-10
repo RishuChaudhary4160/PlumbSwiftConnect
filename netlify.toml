@@ -15,4 +15,9 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["@neondatabase/serverless", "ws"]
+  # Marking babel and lightningcss as external to avoid bundling issues
+  external_node_modules = ["@neondatabase/serverless", "ws", "@babel/preset-typescript", "lightningcss"]
+
+[functions.api]
+  # Forcing ESM for the API function
+  node_bundler = "esbuild"
