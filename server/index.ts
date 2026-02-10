@@ -1,5 +1,7 @@
 import "dotenv/config";
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+if (process.env.DATABASE_URL?.includes("52.220.170.93")) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";

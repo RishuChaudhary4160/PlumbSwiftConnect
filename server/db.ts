@@ -12,12 +12,18 @@ if (!process.env.DATABASE_URL) {
     );
 }
 
-// Ensure we are using the Postgres connection string with SSL hostname check disabled for IP bypass
 export const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false
-    }
+    },
+    // Force search path and ensure connection is stable
+    connectionTimeoutMillis: 10000,
+});
+
+// Test connection and schema
+pool.on('connect', (client) => {
+    client.query('SET search_path TO public');
 });
 
 export const db = drizzle({ client: pool, schema });
