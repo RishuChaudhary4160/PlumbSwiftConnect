@@ -1,7 +1,6 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertPlumberSchema, insertBookingSchema } from "@shared/schema";
+import { insertUserSchema, insertPlumberSchema, insertBookingSchema } from "../shared/schema";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -49,9 +48,7 @@ async function assignPlumberToBooking(bookingId: string, category: string) {
       }]
     });
 
-    // In a real app, this would send SMS/email notification
     console.log(`Plumber ${assignedPlumber.id} assigned to booking ${bookingId}`);
-
     return assignedPlumber;
   } catch (error) {
     console.error('Error assigning plumber:', error);
@@ -65,12 +62,10 @@ async function reassignPlumber(bookingId: string, rejectedPlumberId: string) {
     const booking = await storage.getBooking(bookingId);
     if (!booking) return null;
 
-    // Get available plumbers excluding the one who rejected
     const availablePlumbers = await storage.getAvailablePlumbers(booking.category);
     const filteredPlumbers = availablePlumbers.filter(p => p.id !== rejectedPlumberId);
 
     if (filteredPlumbers.length === 0) {
-      // No other plumbers available
       await storage.updateBooking(bookingId, {
         status: 'pending',
         assignedPlumber: null,
@@ -78,10 +73,8 @@ async function reassignPlumber(bookingId: string, rejectedPlumberId: string) {
       return null;
     }
 
-    // Assign to next best plumber
     const nextPlumber = filteredPlumbers.sort((a, b) => (b.rating || 0) - (a.rating || 0))[0];
 
-    // Update assignment history
     const updatedHistory = [...(booking.assignmentHistory || []), {
       plumberId: nextPlumber.id,
       assignedAt: new Date(),
@@ -102,34 +95,27 @@ async function reassignPlumber(bookingId: string, rejectedPlumberId: string) {
   }
 }
 
-export async function registerRoutes(app: Express): Promise<Server> {
-
+export async function registerRoutes(app: Express) {
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-
-      // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
         return res.status(400).json({ message: "User already exists with this email" });
       }
 
-      // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
-
-      // Create user
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword,
       });
 
-      // If user is a plumber, create plumber profile
       if (userData.role === 'plumber') {
         await storage.createPlumber({
           userId: user.id,
           specializations: [],
-          isAvailable: false, // Needs admin approval
+          isAvailable: false,
           isVerified: false,
           experienceYears: 0,
           rating: 0,
@@ -137,7 +123,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Generate JWT token
       const token = jwt.sign(
         { userId: user.id, email: user.email, role: user.role },
         JWT_SECRET,
@@ -163,15 +148,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
-      console.log(`Login attempt for: ${email}`);
       const user = await storage.getUserByEmail(email);
       if (!user) {
-        console.log(`User not found: ${email}`);
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
       const isPasswordValid = await bcrypt.compare(password, user.password);
-      console.log(`Password valid: ${isPasswordValid}`);
       if (!isPasswordValid) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -211,8 +193,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const booking = await storage.createBooking(bookingData);
-
-      // Automatically assign a plumber
       const assignedPlumber = await assignPlumberToBooking(booking.id, booking.category);
 
       res.json({
@@ -231,20 +211,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/bookings", authenticateToken, async (req: any, res) => {
     try {
       let bookings: any[] = [];
-
       if (req.user.role === 'admin') {
         bookings = await storage.getAllBookings();
       } else if (req.user.role === 'plumber') {
         const plumber = await storage.getPlumberByUserId(req.user.userId);
-        if (plumber) {
-          bookings = await storage.getBookingsByPlumberId(plumber.id);
-        } else {
-          bookings = [];
-        }
+        bookings = plumber ? await storage.getBookingsByPlumberId(plumber.id) : [];
       } else {
         bookings = await storage.getBookingsByUserId(req.user.userId);
       }
-
       res.json(bookings);
     } catch (error) {
       console.error('Fetch bookings error:', error);
@@ -258,25 +232,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { status } = req.body;
 
       const booking = await storage.getBooking(id);
-      if (!booking) {
-        return res.status(404).json({ message: "Booking not found" });
-      }
+      if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-      // Handle plumber job acceptance/rejection
       if (req.user.role === 'plumber') {
         const plumber = await storage.getPlumberByUserId(req.user.userId);
         if (!plumber || booking.assignedPlumber !== plumber.id) {
-          return res.status(403).json({ message: "Not authorized to update this booking" });
+          return res.status(403).json({ message: "Not authorized" });
         }
 
         if (status === 'rejected') {
-          // Reassign to another plumber
           const newPlumber = await reassignPlumber(id, plumber.id);
-
           return res.json({
-            message: newPlumber
-              ? "Job rejected and reassigned to another plumber"
-              : "Job rejected, no other plumbers available",
+            message: newPlumber ? "Reassigned" : "No other plumbers",
             reassigned: !!newPlumber
           });
         }
@@ -285,124 +252,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedBooking = await storage.updateBooking(id, { status });
       res.json(updatedBooking);
     } catch (error) {
-      console.error('Update booking status error:', error);
-      res.status(500).json({ message: "Failed to update booking status" });
+      console.error('Update status error:', error);
+      res.status(500).json({ message: "Failed to update status" });
     }
   });
 
   // Plumber routes
   app.get("/api/plumbers", authenticateToken, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
+      if (req.user.role !== 'admin') return res.status(403).json({ message: "Admin only" });
       const plumbers = await storage.getAllPlumbers();
-
-      // Enrich with user data
-      const enrichedPlumbers = await Promise.all(
-        plumbers.map(async (plumber) => {
-          const user = await storage.getUser(plumber.userId);
-          return { ...plumber, user };
-        })
-      );
-
-      res.json(enrichedPlumbers);
+      const enriched = await Promise.all(plumbers.map(async p => ({ ...p, user: await storage.getUser(p.userId) })));
+      res.json(enriched);
     } catch (error) {
-      console.error('Fetch plumbers error:', error);
-      res.status(500).json({ message: "Failed to fetch plumbers" });
+      res.status(500).json({ message: "Failed" });
     }
   });
 
   app.patch("/api/plumbers/:id/verify", authenticateToken, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const { id } = req.params;
-      const { isVerified } = req.body;
-
-      const updatedPlumber = await storage.updatePlumber(id, {
-        isVerified,
-        isAvailable: isVerified // Make available when verified
-      });
-
-      if (!updatedPlumber) {
-        return res.status(404).json({ message: "Plumber not found" });
-      }
-
-      res.json(updatedPlumber);
+      if (req.user.role !== 'admin') return res.status(403).json({ message: "Admin only" });
+      const updated = await storage.updatePlumber(req.params.id, { isVerified: req.body.isVerified, isAvailable: req.body.isVerified });
+      res.json(updated);
     } catch (error) {
-      console.error('Verify plumber error:', error);
-      res.status(500).json({ message: "Failed to verify plumber" });
+      res.status(500).json({ message: "Failed" });
     }
   });
 
-  app.post("/api/plumbers/onboard", authenticateToken, async (req: any, res) => {
-    try {
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const { name, email, phone, password, specializations, experienceYears, licenseNumber } = req.body;
-
-      // Create user account
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await storage.createUser({
-        name,
-        email,
-        phone,
-        password: hashedPassword,
-        role: 'plumber',
-        address: '',
-      });
-
-      // Create plumber profile
-      const plumber = await storage.createPlumber({
-        userId: user.id,
-        specializations: specializations || [],
-        isAvailable: true,
-        isVerified: true,
-        experienceYears: experienceYears || 0,
-        rating: 0,
-        totalJobs: 0,
-        licenseNumber,
-      });
-
-      res.json({ user, plumber });
-    } catch (error) {
-      console.error('Onboard plumber error:', error);
-      res.status(400).json({ message: "Failed to onboard plumber", error: error instanceof Error ? error.message : 'Unknown error' });
-    }
-  });
-
-  // Dashboard stats
   app.get("/api/dashboard/stats", authenticateToken, async (req: any, res) => {
     try {
-      if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
+      if (req.user.role !== 'admin') return res.status(403).json({ message: "Admin only" });
       const allBookings = await storage.getAllBookings();
       const allPlumbers = await storage.getAllPlumbers();
       const allUsers = await storage.getAllUsers();
-
-      const stats = {
+      res.json({
         totalBookings: allBookings.length,
         activePlumbers: allPlumbers.filter(p => p.isVerified && p.isAvailable).length,
         totalCustomers: allUsers.filter(u => u.role === 'user').length,
         pendingBookings: allBookings.filter(b => b.status === 'pending').length,
         completedBookings: allBookings.filter(b => b.status === 'completed').length,
-      };
-
-      res.json(stats);
+      });
     } catch (error) {
-      console.error('Fetch dashboard stats error:', error);
-      res.status(500).json({ message: "Failed to fetch dashboard stats" });
+      res.status(500).json({ message: "Failed" });
     }
   });
-
-  const httpServer = createServer(app);
-  return httpServer;
 }

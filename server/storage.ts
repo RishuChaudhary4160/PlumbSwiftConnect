@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type Plumber, type InsertPlumber, type Booking, type InsertBooking, type Category, type InsertCategory, users, plumbers, bookings, categories } from "@shared/schema";
+import { type User, type InsertUser, type Plumber, type InsertPlumber, type Booking, type InsertBooking, type Category, type InsertCategory, users, plumbers, bookings, categories } from "../shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
